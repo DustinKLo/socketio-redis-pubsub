@@ -27,15 +27,15 @@ io.on('connection', socket => {
 	});
 
 	socket.on('chat-message', data => {
-    // receive data from chat client
+		// receive data from chat client
 		console.log('received data from chat client', data);
 		pub.publish(data.room, JSON.stringify(data));
 	});
 
 	sub.on('message', (channel, message) => {
 		// when subscriber receives message from publisher in channel
-		// console.log(channel, message);
-		socket.emit('new-message', { // send it back to its own client
+		socket.emit('new-message', {
+			// send it back to its own client
 			...JSON.parse(message),
 		});
 	});
@@ -47,6 +47,6 @@ io.on('connection', socket => {
 });
 
 const PORT = process.env.PORT || 8000;
-http.listen(PORT, function() {
+http.listen(PORT, () => {
 	console.log(`listening on *:${PORT}`);
 });
