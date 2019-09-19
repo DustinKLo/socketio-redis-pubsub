@@ -24,6 +24,7 @@ export default class Chatroom extends React.Component {
 			transports: ['websocket', 'polling'],
 		});
 		this.socket.on('connect', () => {
+			this.socket.on('user-connected', data => console.log(data));
 			this.socket.emit(JOIN_CHANNEL_EVENT, chatroom);
 			this.socket.on(NEW_MESSAGE_EVENT, this.newMessageHandler);
 		});

@@ -26,7 +26,7 @@ if (cluster.isWorker) {
 	const http = require('http').createServer(app);
 	const io = require('socket.io')(http);
 	const redis = require('socket.io-redis');
-	const cors = require('cors')
+	const cors = require('cors');
 	const bodyParser = require('body-parser');
 
 	const adapter = redis({ host: 'localhost', port: 6379 });
@@ -34,14 +34,13 @@ if (cluster.isWorker) {
 
 	io.on('connection', socket => {
 		console.log('a user connected');
-		socket.emit('data', 'connected to worker: ' + cluster.worker.id);
+		socket.emit('user-connected', 'connected to worker: ' + cluster.worker.id);
 
 		socket.on('chat-message', data => {
 			chatroom = data.room;
-      console.log('worker:', cluster.worker.id, 'chat message:', data);
-      socket.to(chatroom).emit('new-message', data);
-    });
-		socket.emit('hello', 'to all clients');
+			console.log('worker:', cluster.worker.id, 'chat message:', data);
+			socket.to(chatroom).emit('new-message', data);
+		});
 
 		socket.on('join-channel', data => {
 			console.log('joined channel', data);
@@ -51,15 +50,15 @@ if (cluster.isWorker) {
 
 	app.use(express.json()); // to support JSON-encoded bodies
 	app.use(express.urlencoded({ extended: true })); // to support URL-encoded bodies
-	app.use(cors())
+	app.use(cors());
 
 	app.get('/', (req, res) => {
 		res.sendFile(__dirname + '/index.html');
 	});
 
 	app.post('/api/message', (req, res) => {
-    // console.log(req.body);
-    res.send({ data: 'blep' });
+		// console.log(req.body);
+		res.send({ data: 'blep' });
 	});
 
 	const PORT = process.env.PORT || 3000;
