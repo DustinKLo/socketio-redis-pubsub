@@ -58,7 +58,7 @@ if (cluster.isWorker) {
 	});
 
 	app.post('/api/message', (req, res) => {
-    console.log(req.body);
+    // console.log(req.body);
     res.send({ data: 'blep' });
 	});
 
