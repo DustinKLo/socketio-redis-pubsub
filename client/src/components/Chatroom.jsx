@@ -13,7 +13,6 @@ export default class Chatroom extends React.Component {
 		super(props);
 		const { chatroom } = props.match.params;
 
-		const that = this;
 		this.state = {
 			chatMsg: '',
 			user: uuid(),
@@ -21,19 +20,25 @@ export default class Chatroom extends React.Component {
 		};
 
 		// instantiating the socket connection to websocket express server (port *8000)
-		this.socket = socket('localhost:8000');
+		this.socket = socket('http://localhost:3000', {
+			transports: ['websocket', 'polling'],
+		});
 		this.socket.on('connect', () => {
-			this.socket.emit(JOIN_CHANNEL_EVENT, { room: chatroom });
-			this.socket.on(NEW_MESSAGE_EVENT, function(data) {
-				console.log(data);
-				that.state.messages.push(data);
-				that.forceUpdate();
-			});
+			this.socket.emit(JOIN_CHANNEL_EVENT, chatroom);
+			this.socket.on(NEW_MESSAGE_EVENT, this.newMessageHandler);
 		});
 
 		// function handlers
 		this.submitChat = this.submitChat.bind(this);
 		this.chatHandler = this.chatHandler.bind(this);
+		this.newMessageHandler = this.newMessageHandler.bind(this);
+	}
+
+	newMessageHandler(data) {
+		console.log(data);
+		this.setState({
+			messages: [...this.state.messages, data],
+		});
 	}
 
 	submitChat(e) {
@@ -48,8 +53,17 @@ export default class Chatroom extends React.Component {
 			id: uuid(),
 		};
 
+		fetch('http://localhost:3000/api/message', {
+			method: 'POST',
+			headers: { 'Content-Type': 'application/json' },
+			body: JSON.stringify(payload),
+		}).then(res => res.json());
+
 		this.socket.emit(CHAT_MESSAGE_EVENT, payload);
-		this.setState({ chatMsg: '' });
+		this.setState({
+			chatMsg: '',
+			messages: [...this.state.messages, payload],
+		});
 	}
 
 	chatHandler(e) {
@@ -90,15 +104,23 @@ export default class Chatroom extends React.Component {
 			<div>
 				<h1>Welcome to {chatroom}!!</h1>
 				<h2>User: {user}</h2>
-				{messages.map(msg => (
-					<div key={msg.id}>
-						<span style={{ paddingRight: 30 }}>{msg.user}</span>
-						<span style={{ paddingRight: 30 }}>({msg.timestamp}): </span>
-						<span>{msg.message}: </span>
-					</div>
-				))}
+				<div>
+					{messages.map(msg => (
+						<div key={msg.id}>
+							<span style={{ paddingRight: 30 }}>{msg.user}</span>
+							<span style={{ paddingRight: 30 }}>({msg.timestamp}): </span>
+							<span>{msg.message}</span>
+						</div>
+					))}
+				</div>
 				<form onSubmit={this.submitChat} style={formStyle}>
-					<input autoComplete="off" value={chatMsg} onChange={this.chatHandler} style={chatboxStyle} />
+					<input
+						autoComplete="off"
+						autoFocus={true}
+						value={chatMsg}
+						onChange={this.chatHandler}
+						style={chatboxStyle}
+					/>
 					<button style={buttonStyle}>Send</button>
 				</form>
 			</div>

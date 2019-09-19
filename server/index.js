@@ -1,52 +1,67 @@
-const app = require('express')();
-const http = require('http').createServer(app);
-const io = require('socket.io')(http);
-var redis = require('redis');
-// const redisSocket = require('socket.io-redis');
+const os = require('os');
+const cluster = require('cluster');
 
-// io.adapter(redisSocket({ host: 'localhost', port: '6379' }));
-// https://stackoverflow.com/questions/32743754/using-redis-as-pubsub-over-socket-io
+if (cluster.isMaster) {
+	// we create a HTTP server, but we do not use listen
+	// that way, we have a socket.io server that doesn't accept connections
+	const server = require('http').createServer();
+	const io = require('socket.io').listen(server);
+	const redis = require('socket.io-redis');
 
-io.on('connection', socket => {
-	// socket is the specific client iinstance connected to the websocker server
-	console.log('a user connected');
+	const adapter = redis({ host: 'localhost', port: 6379 });
+	io.adapter(adapter);
 
-	const pub = redis.createClient();
-	const sub = redis.createClient();
+	for (let i = 0; i < os.cpus().length; i++) {
+		cluster.fork();
+	}
 
-	socket.on('join-channel', data => {
-		// join-channel event sent from client (frontend) and subscribes to redis pub sub channels
-		console.log('join-channel', data);
-		sub.subscribe(data.room);
-		socket.join(data.room);
+	cluster.on('exit', (worker, code, signal) => {
+		console.log('worker ' + worker.process.pid + ' died');
 	});
+}
 
-	sub.on('subscribe', (channel, count) => {
-		// when the client subscribes to a channel, sub.subscribe(channel)
-		console.log(`Subscribed to '${channel}'. Now subscribed to ${count} channel(s).`);
-	});
+if (cluster.isWorker) {
+	const express = require('express');
+	const app = express();
+	const http = require('http').createServer(app);
+	const io = require('socket.io')(http);
+	const redis = require('socket.io-redis');
+	const cors = require('cors')
+	const bodyParser = require('body-parser');
 
-	socket.on('chat-message', data => {
-		// receive data from chat client
-		console.log('received data from chat client', data);
-		pub.publish(data.room, JSON.stringify(data));
-	});
+	const adapter = redis({ host: 'localhost', port: 6379 });
+	io.adapter(adapter);
 
-	sub.on('message', (channel, message) => {
-		// when subscriber receives message from publisher in channel
-		socket.emit('new-message', {
-			// send it back to its own client
-			...JSON.parse(message),
+	io.on('connection', socket => {
+		console.log('a user connected');
+		socket.emit('data', 'connected to worker: ' + cluster.worker.id);
+
+		socket.on('chat-message', data => {
+			chatroom = data.room;
+      console.log('worker:', cluster.worker.id, 'chat message:', data);
+      socket.to(chatroom).emit('new-message', data);
+    });
+		socket.emit('hello', 'to all clients');
+
+		socket.on('join-channel', data => {
+			console.log('joined channel', data);
+			socket.join(data);
 		});
 	});
 
-	socket.on('disconnect', () => {
-		sub.quit();
-		console.log('a user disconnected');
-	});
-});
+	app.use(express.json()); // to support JSON-encoded bodies
+	app.use(express.urlencoded({ extended: true })); // to support URL-encoded bodies
+	app.use(cors())
 
-const PORT = process.env.PORT || 8000;
-http.listen(PORT, () => {
-	console.log(`listening on *:${PORT}`);
-});
+	app.get('/', (req, res) => {
+		res.sendFile(__dirname + '/index.html');
+	});
+
+	app.post('/api/message', (req, res) => {
+    console.log(req.body);
+    res.send({ data: 'blep' });
+	});
+
+	const PORT = process.env.PORT || 3000;
+	http.listen(PORT, () => console.log(`worker started on port ${PORT}`));
+}
